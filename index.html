@@ -1,0 +1,1709 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>لوحة إدارة — المخزن • التسوق • المهام • المستقبل</title>
+
+  <!--
+    ✅ ملف واحد فقط (HTML+CSS+JS) — يعمل على الموبايل
+    ✅ تخزين محلي LocalStorage (بدون سيرفر)
+    ✅ واجهات متعددة (Views) داخل نفس الصفحة
+    ✅ طباعة A4 لقائمة التسوق
+  -->
+
+  <style>
+    :root{
+      --bg:#0b1220;
+      --card:rgba(255,255,255,.06);
+      --card2:rgba(255,255,255,.08);
+      --stroke:rgba(255,255,255,.10);
+      --text:rgba(255,255,255,.92);
+      --muted:rgba(255,255,255,.68);
+      --brand:#7dd3fc;
+      --brand2:#a78bfa;
+      --ok:#34d399;
+      --warn:#fbbf24;
+      --bad:#fb7185;
+      --shadow: 0 14px 40px rgba(0,0,0,.35);
+      --r:18px;
+    }
+
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Tahoma, Arial, sans-serif;
+      background:
+        radial-gradient(1200px 700px at 85% -10%, rgba(167,139,250,.25), transparent 60%),
+        radial-gradient(900px 600px at 10% 0%, rgba(125,211,252,.18), transparent 60%),
+        linear-gradient(180deg, #060a14, #0b1220 55%, #070b14);
+      color:var(--text);
+      min-height:100vh;
+      overflow-x:hidden;
+    }
+
+    /* خلفية حبيبات */
+    .grain{
+      pointer-events:none;
+      position:fixed;
+      inset:0;
+      opacity:.12;
+      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)' opacity='.35'/%3E%3C/svg%3E");
+      mix-blend-mode:overlay;
+    }
+
+    .app{
+      max-width:1100px;
+      margin:0 auto;
+      padding:18px 16px 60px;
+    }
+
+    /* شريط علوي */
+    .topbar{
+      display:flex;
+      gap:12px;
+      align-items:center;
+      justify-content:space-between;
+      padding:14px 14px;
+      border:1px solid var(--stroke);
+      background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      border-radius: calc(var(--r) + 6px);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+      position:sticky;
+      top:12px;
+      z-index:10;
+    }
+
+    .brand{
+      display:flex; align-items:center; gap:10px;
+      min-width: 240px;
+    }
+    .logo{
+      width:42px; height:42px;
+      border-radius:14px;
+      background:
+        radial-gradient(circle at 30% 30%, rgba(125,211,252,.9), transparent 55%),
+        radial-gradient(circle at 70% 70%, rgba(167,139,250,.9), transparent 55%),
+        rgba(255,255,255,.08);
+      border:1px solid rgba(255,255,255,.14);
+      box-shadow: 0 10px 30px rgba(0,0,0,.35);
+      position:relative;
+      overflow:hidden;
+    }
+    .logo::after{
+      content:"";
+      position:absolute; inset:-40%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,.22), transparent);
+      transform: rotate(25deg);
+      animation: shimmer 2.8s ease-in-out infinite;
+    }
+    @keyframes shimmer{
+      0%{ transform: translateX(-35%) rotate(25deg); opacity:.0}
+      30%{opacity:.8}
+      55%{opacity:.35}
+      100%{ transform: translateX(35%) rotate(25deg); opacity:0}
+    }
+
+    .brand h1{
+      font-size:16px; margin:0;
+      letter-spacing:.2px;
+    }
+    .brand p{
+      margin:2px 0 0;
+      font-size:12px; color:var(--muted);
+    }
+
+    .nav{
+      display:flex; gap:10px; flex-wrap:wrap;
+      justify-content:flex-end;
+    }
+
+    .btn{
+      appearance:none; border:1px solid var(--stroke);
+      background:rgba(255,255,255,.06);
+      color:var(--text);
+      border-radius: 999px;
+      padding:10px 12px;
+      cursor:pointer;
+      transition: transform .18s ease, background .18s ease, border-color .18s ease, box-shadow .18s ease;
+      display:inline-flex; align-items:center; gap:8px;
+      font-size:13px;
+      user-select:none;
+    }
+    .btn:hover{
+      transform: translateY(-1px);
+      background:rgba(255,255,255,.08);
+      border-color: rgba(255,255,255,.18);
+      box-shadow: 0 10px 24px rgba(0,0,0,.25);
+    }
+    .btn:active{ transform: translateY(0px) scale(.99); }
+    .btn.primary{
+      border-color: rgba(125,211,252,.35);
+      background: linear-gradient(180deg, rgba(125,211,252,.18), rgba(255,255,255,.06));
+    }
+    .btn.danger{
+      border-color: rgba(251,113,133,.35);
+      background: linear-gradient(180deg, rgba(251,113,133,.16), rgba(255,255,255,.05));
+    }
+    .btn.ok{
+      border-color: rgba(52,211,153,.35);
+      background: linear-gradient(180deg, rgba(52,211,153,.16), rgba(255,255,255,.05));
+    }
+
+    .content{
+      margin-top:16px;
+      position:relative;
+    }
+
+    /* انتقال بين الصفحات (Views) */
+    .view{
+      display:none;
+      animation: viewIn .35s cubic-bezier(.2,.8,.2,1) both;
+    }
+    .view.active{ display:block; }
+    @keyframes viewIn{
+      from{ opacity:0; transform: translateY(12px); filter: blur(6px);}
+      to{ opacity:1; transform: translateY(0); filter: blur(0);}
+    }
+
+    /* الصفحة الرئيسية */
+    .hero{
+      border:1px solid var(--stroke);
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      border-radius: calc(var(--r) + 10px);
+      padding:22px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+      overflow:hidden;
+      position:relative;
+    }
+    .hero::before{
+      content:"";
+      position:absolute;
+      inset:-120px;
+      background:
+        radial-gradient(circle at 85% 20%, rgba(125,211,252,.22), transparent 55%),
+        radial-gradient(circle at 15% 80%, rgba(167,139,250,.18), transparent 55%);
+      filter: blur(12px);
+      animation: floaty 8s ease-in-out infinite;
+    }
+    @keyframes floaty{
+      0%,100%{transform: translateY(0px) scale(1)}
+      50%{transform: translateY(10px) scale(1.02)}
+    }
+    .hero > *{ position:relative; }
+    .hero h2{
+      margin:0 0 6px;
+      font-size:18px;
+    }
+    .hero p{
+      margin:0;
+      color:var(--muted);
+      line-height:1.7;
+      font-size:13px;
+    }
+
+    .grid{
+      margin-top:16px;
+      display:grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap:12px;
+    }
+    .tile{
+      grid-column: span 6;
+      border:1px solid var(--stroke);
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      border-radius: calc(var(--r) + 6px);
+      padding:16px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+      cursor:pointer;
+      transition: transform .18s ease, border-color .18s ease, background .18s ease;
+      position:relative;
+      overflow:hidden;
+      min-height: 110px;
+    }
+    .tile:hover{
+      transform: translateY(-2px);
+      border-color: rgba(255,255,255,.18);
+      background: rgba(255,255,255,.07);
+    }
+    .tile:active{ transform: translateY(0px) scale(.99); }
+    .tile .kicker{
+      display:flex; align-items:center; justify-content:space-between;
+      margin-bottom:8px;
+    }
+    .badge{
+      font-size:12px;
+      color: rgba(255,255,255,.85);
+      padding:6px 10px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.06);
+    }
+    .tile h3{
+      margin:0 0 6px;
+      font-size:16px;
+    }
+    .tile p{
+      margin:0;
+      color:var(--muted);
+      font-size:12.5px;
+      line-height:1.6;
+    }
+
+    /* أقسام عامة */
+    .section{
+      border:1px solid var(--stroke);
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      border-radius: calc(var(--r) + 10px);
+      padding:16px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+    }
+    .sectionHeader{
+      display:flex; align-items:flex-start; justify-content:space-between; gap:12px;
+      margin-bottom:12px;
+      flex-wrap:wrap;
+    }
+    .sectionHeader h2{
+      margin:0;
+      font-size:18px;
+    }
+    .sectionHeader .sub{
+      margin:4px 0 0;
+      color:var(--muted);
+      font-size:12.5px;
+      line-height:1.6;
+    }
+    .stack{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+
+    .panel{
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.05);
+      border-radius: var(--r);
+      padding:12px;
+    }
+
+    /* حقول */
+    .row{
+      display:grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap:10px;
+      align-items:end;
+    }
+    .field{
+      grid-column: span 3;
+      display:flex; flex-direction:column; gap:6px;
+    }
+    .field.w4{ grid-column: span 4; }
+    .field.w6{ grid-column: span 6; }
+    .field.w12{ grid-column: span 12; }
+
+    label{
+      font-size:12px; color: var(--muted);
+    }
+    input, select, textarea{
+      width:100%;
+      border-radius: 14px;
+      border:1px solid rgba(255,255,255,.14);
+      background: rgba(0,0,0,.18);
+      color: var(--text);
+      padding:11px 12px;
+      outline:none;
+      transition: border-color .18s ease, transform .18s ease, background .18s ease;
+      font-size:13px;
+    }
+    textarea{ min-height: 86px; resize: vertical; }
+    input:focus, select:focus, textarea:focus{
+      border-color: rgba(125,211,252,.45);
+      background: rgba(0,0,0,.22);
+    }
+    input::placeholder, textarea::placeholder{ color: rgba(255,255,255,.35); }
+
+    .divider{
+      height:1px;
+      background: rgba(255,255,255,.10);
+      margin:14px 0;
+    }
+
+    /* جدول */
+    .tableWrap{ overflow:auto; border-radius: var(--r); border:1px solid rgba(255,255,255,.12); }
+    table{
+      width:100%;
+      border-collapse: collapse;
+      min-width: 760px;
+      background: rgba(0,0,0,.10);
+    }
+    th, td{
+      padding:10px 10px;
+      border-bottom: 1px solid rgba(255,255,255,.10);
+      font-size:13px;
+      vertical-align: middle;
+      white-space:nowrap;
+    }
+    th{
+      text-align:right;
+      color: rgba(255,255,255,.80);
+      background: rgba(255,255,255,.05);
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+    td .mini{
+      font-size:12px; color: var(--muted);
+    }
+
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      padding:6px 10px;
+      border-radius: 999px;
+      border:1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.05);
+      font-size:12px;
+      color: rgba(255,255,255,.85);
+    }
+    .pill.ok{ border-color: rgba(52,211,153,.28); background: rgba(52,211,153,.08); }
+    .pill.warn{ border-color: rgba(251,191,36,.28); background: rgba(251,191,36,.08); }
+    .pill.bad{ border-color: rgba(251,113,133,.28); background: rgba(251,113,133,.08); }
+
+    .right{ text-align:left; } /* RTL: left هو الطرف اليمين بصرياً */
+    .muted{ color: var(--muted); }
+
+    /* مودال */
+    .modal{
+      position:fixed;
+      inset:0;
+      display:none;
+      place-items:center;
+      background: rgba(0,0,0,.55);
+      z-index: 50;
+      padding: 16px;
+    }
+    .modal.open{ display:grid; }
+    .modalCard{
+      width: min(820px, 100%);
+      border:1px solid rgba(255,255,255,.16);
+      background: rgba(10,15,28,.88);
+      border-radius: calc(var(--r) + 10px);
+      box-shadow: 0 22px 70px rgba(0,0,0,.55);
+      backdrop-filter: blur(12px);
+      overflow:hidden;
+      animation: pop .25s cubic-bezier(.2,.9,.2,1) both;
+    }
+    @keyframes pop{
+      from{ transform: translateY(8px) scale(.98); opacity:0; }
+      to{ transform: translateY(0) scale(1); opacity:1; }
+    }
+    .modalHead{
+      display:flex; justify-content:space-between; align-items:center;
+      padding: 14px 14px;
+      border-bottom:1px solid rgba(255,255,255,.10);
+    }
+    .modalHead h3{ margin:0; font-size:16px; }
+    .modalBody{ padding: 14px; }
+    .modalFoot{
+      padding: 14px;
+      border-top:1px solid rgba(255,255,255,.10);
+      display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;
+    }
+
+    /* مهام */
+    .tasksGrid{
+      display:grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap:12px;
+      margin-top: 10px;
+    }
+    .taskCard{
+      grid-column: span 6;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.05);
+      border-radius: var(--r);
+      padding: 12px;
+      transition: transform .18s ease, border-color .18s ease;
+    }
+    .taskCard:hover{ transform: translateY(-2px); border-color: rgba(255,255,255,.18); }
+    .taskTop{ display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+    .taskTitle{ margin:0; font-size:14px; line-height:1.5; }
+    .taskMeta{ display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+    .taskActions{ display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+
+    /* قوائم مستقبلية */
+    .futureLists{
+      display:grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap:12px;
+      margin-top: 10px;
+    }
+    .futureCard{
+      grid-column: span 6;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.05);
+      border-radius: var(--r);
+      padding: 12px;
+    }
+    .futureCard h4{ margin:0 0 6px; font-size:15px; }
+    .futureSub{
+      margin:0 0 10px;
+      color: var(--muted);
+      font-size:12.5px;
+      line-height:1.6;
+    }
+    .subitems{
+      border-top:1px solid rgba(255,255,255,.10);
+      margin-top:10px;
+      padding-top:10px;
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+    .subitem{
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      padding:10px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.12);
+      border-radius: 14px;
+    }
+
+    /* ريسبونسف */
+    @media (max-width: 860px){
+      .tile{ grid-column: span 12; }
+      .field{ grid-column: span 6; }
+      .taskCard, .futureCard{ grid-column: span 12; }
+      .brand{ min-width:auto; }
+    }
+    @media (max-width: 520px){
+      .field{ grid-column: span 12; }
+      .nav{ justify-content:flex-start; }
+    }
+
+    /* طباعة A4 */
+    @media print{
+      body{ background:white !important; color:black !important; }
+      .grain, .topbar, .noPrint{ display:none !important; }
+      .section, .panel, .hero{ box-shadow:none !important; border:1px solid #ddd !important; background:white !important; }
+      table{ min-width: 0 !important; }
+      th{ position: static !important; background: #f3f3f3 !important; color:#000 !important; }
+      .content{ margin-top:0 !important; }
+      .printTitle{
+        display:block !important;
+        text-align:center;
+        font-size:16px;
+        font-weight:700;
+        margin: 0 0 10px;
+      }
+    }
+    .printTitle{ display:none; }
+  </style>
+</head>
+
+<body>
+  <div class="grain"></div>
+
+  <div class="app">
+    <div class="topbar noPrint">
+      <div class="brand">
+        <div class="logo" aria-hidden="true"></div>
+        <div>
+          <h1>لوحة إدارة شخصية</h1>
+          <p>مخزن • قائمة تسوق • قوائم مهام • قوائم مستقبلية</p>
+        </div>
+      </div>
+
+      <div class="nav">
+        <button class="btn primary" onclick="go('home')">🏠 الرئيسية</button>
+        <button class="btn" onclick="go('inventory')">📦 المخزن</button>
+        <button class="btn" onclick="go('shopping')">🧾 قائمة التسوق</button>
+        <button class="btn" onclick="go('tasks')">✅ قوائم المهام</button>
+        <button class="btn" onclick="go('future')">🗂️ قوائم مستقبلية</button>
+      </div>
+    </div>
+
+    <div class="content">
+      <!-- HOME -->
+      <section id="view-home" class="view active">
+        <div class="hero">
+          <h2>مرحبًا 👋</h2>
+          <p>
+            هذه صفحة ويب تعمل كـ “تطبيق” بواجهات متعددة. كل البيانات تُحفظ داخل جهازك تلقائيًا (LocalStorage).
+            اختر قسمًا للبدء.
+          </p>
+
+          <div class="grid" style="margin-top:14px;">
+            <div class="tile" onclick="go('inventory')">
+              <div class="kicker">
+                <span class="badge">لوحة تحكم</span>
+                <span class="pill">CRUD</span>
+              </div>
+              <h3>📦 المخزن</h3>
+              <p>إضافة منتجات، تعديل، حذف، وحساب صافي الربح بسهولة.</p>
+            </div>
+
+            <div class="tile" onclick="go('shopping')">
+              <div class="kicker">
+                <span class="badge">بحث + طباعة</span>
+                <span class="pill">A4</span>
+              </div>
+              <h3>🧾 قائمة التسوق</h3>
+              <p>اختيار منتجات من المخزن، كميات، مجموع تلقائي، وطباعة.</p>
+            </div>
+
+            <div class="tile" onclick="go('tasks')">
+              <div class="kicker">
+                <span class="badge">تنظيم</span>
+                <span class="pill ok">يومي/أسبوعي/شهري</span>
+              </div>
+              <h3>✅ قوائم المهام</h3>
+              <p>إضافة مهام مع تمييز، تعديل وحذف، وتتبع الحالة.</p>
+            </div>
+
+            <div class="tile" onclick="go('future')">
+              <div class="kicker">
+                <span class="badge">تخطيط</span>
+                <span class="pill warn">تكلفة فردية/إجمالية</span>
+              </div>
+              <h3>🗂️ قوائم مستقبلية</h3>
+              <p>قوائم رئيسية + قوائم فرعية مع حساب تكاليف تلقائي.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- INVENTORY -->
+      <section id="view-inventory" class="view">
+        <div class="section">
+          <div class="sectionHeader">
+            <div>
+              <h2>📦 المخزن</h2>
+              <div class="sub">إضافة / تعديل / حذف منتجات — (اسم المنتج، سعر الجملة، الكمية، صافي الربح)</div>
+            </div>
+            <div class="stack">
+              <button class="btn ok" onclick="openInventoryModal()">➕ إضافة منتج</button>
+              <button class="btn danger" onclick="confirmReset('inventory')">🗑️ مسح المخزن</button>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="row">
+              <div class="field w6">
+                <label>بحث بالاسم</label>
+                <input id="invSearch" placeholder="اكتب اسم المنتج..." oninput="renderInventory()" />
+              </div>
+              <div class="field w3">
+                <label>ترتيب</label>
+                <select id="invSort" onchange="renderInventory()">
+                  <option value="name_asc">الاسم (أ-ي)</option>
+                  <option value="name_desc">الاسم (ي-أ)</option>
+                  <option value="qty_desc">الكمية (الأكثر)</option>
+                  <option value="qty_asc">الكمية (الأقل)</option>
+                  <option value="wholesale_desc">سعر الجملة (الأعلى)</option>
+                  <option value="wholesale_asc">سعر الجملة (الأقل)</option>
+                </select>
+              </div>
+              <div class="field w3">
+                <label>ملخص سريع</label>
+                <div class="pill" id="invSummary">—</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="tableWrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>اسم المنتج</th>
+                  <th>سعر الجملة</th>
+                  <th>الكمية</th>
+                  <th>صافي الربح</th>
+                  <th class="right">إجراءات</th>
+                </tr>
+              </thead>
+              <tbody id="invTbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- SHOPPING -->
+      <section id="view-shopping" class="view">
+        <div class="section">
+          <div class="sectionHeader">
+            <div>
+              <h2>🧾 قائمة التسوق</h2>
+              <div class="sub">اختيار منتج من المخزن بالبحث، إدخال كمية، حساب تلقائي، مجموع كلي، وطباعة A4.</div>
+            </div>
+            <div class="stack">
+              <button class="btn ok" onclick="openAddToShoppingModal()">➕ إضافة إلى القائمة</button>
+              <button class="btn" onclick="printShopping()">🖨️ طباعة A4</button>
+              <button class="btn danger" onclick="confirmReset('shopping')">🗑️ مسح القائمة</button>
+            </div>
+          </div>
+
+          <div class="printTitle">قائمة التسوق</div>
+
+          <div class="panel">
+            <div class="row">
+              <div class="field w6">
+                <label>ملاحظة للطباعة (اختياري)</label>
+                <input id="shopNote" placeholder="مثال: تاريخ / اسم المشتري / ملاحظات..." oninput="saveShopNote()"/>
+              </div>
+              <div class="field w6">
+                <label>المجموع الكلي</label>
+                <div class="pill ok" id="shopTotal">0</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="tableWrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>اسم المنتج</th>
+                  <th>الكمية</th>
+                  <th>سعر الجملة</th>
+                  <th>السعر الكلي</th>
+                  <th class="right">إجراءات</th>
+                </tr>
+              </thead>
+              <tbody id="shopTbody"></tbody>
+            </table>
+          </div>
+
+          <div style="margin-top:10px" class="muted">
+            <span class="pill">ملاحظة: السعر الكلي = الكمية × سعر الجملة</span>
+            <span class="pill" id="shopNotePreview" style="margin-right:8px">—</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- TASKS -->
+      <section id="view-tasks" class="view">
+        <div class="section">
+          <div class="sectionHeader">
+            <div>
+              <h2>✅ قوائم المهام</h2>
+              <div class="sub">مهام يومية/أسبوعية/شهرية — إضافة/تعديل/حذف/تمييز/إكمال.</div>
+            </div>
+            <div class="stack">
+              <button class="btn ok" onclick="openTaskModal()">➕ إضافة مهمة</button>
+              <button class="btn danger" onclick="confirmReset('tasks')">🗑️ مسح المهام</button>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="row">
+              <div class="field w6">
+                <label>بحث</label>
+                <input id="taskSearch" placeholder="ابحث عن مهمة..." oninput="renderTasks()"/>
+              </div>
+              <div class="field w3">
+                <label>فلترة</label>
+                <select id="taskFilter" onchange="renderTasks()">
+                  <option value="all">الكل</option>
+                  <option value="daily">يومية</option>
+                  <option value="weekly">أسبوعية</option>
+                  <option value="monthly">شهرية</option>
+                  <option value="star">مميزة ⭐</option>
+                  <option value="done">مكتملة ✅</option>
+                  <option value="todo">غير مكتملة</option>
+                </select>
+              </div>
+              <div class="field w3">
+                <label>ملخص</label>
+                <div class="pill" id="taskSummary">—</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="tasksGrid" id="tasksGrid"></div>
+        </div>
+      </section>
+
+      <!-- FUTURE -->
+      <section id="view-future" class="view">
+        <div class="section">
+          <div class="sectionHeader">
+            <div>
+              <h2>🗂️ قوائم مستقبلية</h2>
+              <div class="sub">أنشئ قائمة رئيسية وبداخلها عناصر فرعية مع تكلفة فردية وإجمالية.</div>
+            </div>
+            <div class="stack">
+              <button class="btn ok" onclick="openFutureListModal()">➕ قائمة جديدة</button>
+              <button class="btn danger" onclick="confirmReset('future')">🗑️ مسح الكل</button>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="row">
+              <div class="field w6">
+                <label>بحث بالقوائم</label>
+                <input id="futureSearch" placeholder="ابحث باسم القائمة..." oninput="renderFuture()"/>
+              </div>
+              <div class="field w6">
+                <label>إجمالي كل القوائم</label>
+                <div class="pill warn" id="futureGrandTotal">0</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="futureLists" id="futureLists"></div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- MODALS -->
+  <div id="modal" class="modal" onclick="if(event.target.id==='modal') closeModal()">
+    <div class="modalCard">
+      <div class="modalHead">
+        <h3 id="modalTitle">—</h3>
+        <button class="btn" onclick="closeModal()">✖</button>
+      </div>
+      <div class="modalBody" id="modalBody"></div>
+      <div class="modalFoot" id="modalFoot"></div>
+    </div>
+  </div>
+
+<script>
+/* ===========================
+   Utils + Storage
+=========================== */
+const LS_KEYS = {
+  inventory: "APP_INV_V1",
+  shopping:  "APP_SHOP_V1",
+  shopNote:  "APP_SHOP_NOTE_V1",
+  tasks:     "APP_TASKS_V1",
+  future:    "APP_FUTURE_V1",
+};
+
+const uid = () => Math.random().toString(16).slice(2) + Date.now().toString(16);
+const nfmt = (x) => {
+  const n = Number(x || 0);
+  if (!isFinite(n)) return "0";
+  return n.toLocaleString("ar-IQ");
+};
+const toNum = (v) => {
+  const n = Number(String(v).replace(/[^\d.-]/g,""));
+  return isFinite(n) ? n : 0;
+};
+const load = (key, fallback) => {
+  try{
+    const raw = localStorage.getItem(key);
+    if(!raw) return fallback;
+    return JSON.parse(raw);
+  }catch(e){
+    return fallback;
+  }
+};
+const save = (key, value) => localStorage.setItem(key, JSON.stringify(value));
+
+let state = {
+  inventory: load(LS_KEYS.inventory, []),
+  shopping:  load(LS_KEYS.shopping,  []),
+  shopNote:  localStorage.getItem(LS_KEYS.shopNote) || "",
+  tasks:     load(LS_KEYS.tasks,     []),
+  future:    load(LS_KEYS.future,    []),
+};
+
+/* ===========================
+   Navigation (Views)
+=========================== */
+function go(view){
+  const ids = ["home","inventory","shopping","tasks","future"];
+  ids.forEach(v=>{
+    document.getElementById("view-"+v).classList.toggle("active", v===view);
+  });
+  // Render on enter
+  if(view==="inventory") renderInventory();
+  if(view==="shopping") renderShopping();
+  if(view==="tasks") renderTasks();
+  if(view==="future") renderFuture();
+  window.scrollTo({top:0, behavior:"smooth"});
+}
+
+/* ===========================
+   Modal helpers
+=========================== */
+function openModal(title, bodyHTML, footHTML){
+  document.getElementById("modalTitle").textContent = title;
+  document.getElementById("modalBody").innerHTML = bodyHTML;
+  document.getElementById("modalFoot").innerHTML = footHTML || "";
+  document.getElementById("modal").classList.add("open");
+}
+function closeModal(){
+  document.getElementById("modal").classList.remove("open");
+}
+function toast(msg){
+  // Toast بسيط
+  const t = document.createElement("div");
+  t.textContent = msg;
+  Object.assign(t.style,{
+    position:"fixed", bottom:"18px", left:"18px", right:"18px",
+    padding:"12px 14px", background:"rgba(10,15,28,.92)",
+    border:"1px solid rgba(255,255,255,.14)",
+    borderRadius:"16px", color:"rgba(255,255,255,.92)",
+    boxShadow:"0 18px 40px rgba(0,0,0,.45)",
+    zIndex:999, backdropFilter:"blur(10px)",
+    transform:"translateY(12px)", opacity:"0",
+    transition:"all .22s ease",
+    textAlign:"center"
+  });
+  document.body.appendChild(t);
+  requestAnimationFrame(()=>{ t.style.transform="translateY(0)"; t.style.opacity="1"; });
+  setTimeout(()=>{
+    t.style.transform="translateY(10px)";
+    t.style.opacity="0";
+    setTimeout(()=>t.remove(), 250);
+  }, 1600);
+}
+
+/* ===========================
+   Reset confirm
+=========================== */
+function confirmReset(which){
+  const labels = {
+    inventory:"مسح المخزن بالكامل؟",
+    shopping:"مسح قائمة التسوق بالكامل؟",
+    tasks:"مسح جميع المهام؟",
+    future:"مسح جميع القوائم المستقبلية؟",
+  };
+  openModal("تأكيد", `
+    <div class="panel">
+      <p style="margin:0; line-height:1.8">
+        ${labels[which] || "هل أنت متأكد؟"}<br>
+        <span class="muted">لن يمكنك التراجع بعد الحذف.</span>
+      </p>
+    </div>
+  `, `
+    <button class="btn" onclick="closeModal()">إلغاء</button>
+    <button class="btn danger" onclick="doReset('${which}')">نعم، احذف</button>
+  `);
+}
+function doReset(which){
+  if(which==="inventory"){ state.inventory=[]; save(LS_KEYS.inventory, state.inventory); renderInventory(); }
+  if(which==="shopping"){ state.shopping=[]; save(LS_KEYS.shopping, state.shopping); renderShopping(); }
+  if(which==="tasks"){ state.tasks=[]; save(LS_KEYS.tasks, state.tasks); renderTasks(); }
+  if(which==="future"){ state.future=[]; save(LS_KEYS.future, state.future); renderFuture(); }
+  closeModal();
+  toast("تم الحذف ✅");
+}
+
+/* ===========================
+   INVENTORY (CRUD)
+=========================== */
+function openInventoryModal(editId=null){
+  const isEdit = !!editId;
+  const item = isEdit ? state.inventory.find(x=>x.id===editId) : null;
+
+  const body = `
+    <div class="row">
+      <div class="field w6">
+        <label>اسم المنتج</label>
+        <input id="m_inv_name" placeholder="مثال: كيبل تايب سي" value="${item?.name ? escapeHtml(item.name) : ""}">
+      </div>
+      <div class="field w3">
+        <label>سعر الجملة</label>
+        <input id="m_inv_wh" inputmode="decimal" placeholder="مثال: 2500" value="${item ? item.wholesale : ""}">
+      </div>
+      <div class="field w3">
+        <label>الكمية</label>
+        <input id="m_inv_qty" inputmode="numeric" placeholder="مثال: 10" value="${item ? item.qty : ""}">
+      </div>
+      <div class="field w3">
+        <label>صافي الربح</label>
+        <input id="m_inv_profit" inputmode="decimal" placeholder="مثال: 500" value="${item ? item.profit : ""}">
+      </div>
+      <div class="field w9">
+        <label>ملاحظة (اختياري)</label>
+        <input id="m_inv_note" placeholder="أي ملاحظة…" value="${item?.note ? escapeHtml(item.note) : ""}">
+      </div>
+    </div>
+  `;
+  const foot = `
+    <button class="btn" onclick="closeModal()">إلغاء</button>
+    ${isEdit ? `<button class="btn danger" onclick="deleteInventory('${editId}')">حذف</button>` : ``}
+    <button class="btn ok" onclick="${isEdit ? `saveInventoryEdit('${editId}')` : `saveInventoryNew()`}">${isEdit ? "حفظ التعديل" : "إضافة"}</button>
+  `;
+  openModal(isEdit ? "تعديل منتج" : "إضافة منتج", body, foot);
+}
+function saveInventoryNew(){
+  const name = val("m_inv_name").trim();
+  const wholesale = toNum(val("m_inv_wh"));
+  const qty = Math.max(0, Math.floor(toNum(val("m_inv_qty"))));
+  const profit = toNum(val("m_inv_profit"));
+  const note = val("m_inv_note").trim();
+
+  if(!name){ toast("اكتب اسم المنتج"); return; }
+
+  const exists = state.inventory.some(x => x.name.trim().toLowerCase() === name.toLowerCase());
+  if(exists){
+    toast("هذا المنتج موجود مسبقًا (غيّر الاسم أو عدّل المنتج)");
+    return;
+  }
+
+  state.inventory.unshift({ id:uid(), name, wholesale, qty, profit, note, createdAt: Date.now() });
+  save(LS_KEYS.inventory, state.inventory);
+  closeModal();
+  renderInventory();
+  toast("تمت الإضافة ✅");
+}
+function saveInventoryEdit(id){
+  const idx = state.inventory.findIndex(x=>x.id===id);
+  if(idx<0) return;
+
+  const name = val("m_inv_name").trim();
+  const wholesale = toNum(val("m_inv_wh"));
+  const qty = Math.max(0, Math.floor(toNum(val("m_inv_qty"))));
+  const profit = toNum(val("m_inv_profit"));
+  const note = val("m_inv_note").trim();
+  if(!name){ toast("اكتب اسم المنتج"); return; }
+
+  // منع تكرار الاسم مع منتج آخر
+  const clash = state.inventory.some(x => x.id!==id && x.name.trim().toLowerCase()===name.toLowerCase());
+  if(clash){
+    toast("اسم المنتج مستخدم لمنتج آخر");
+    return;
+  }
+
+  state.inventory[idx] = { ...state.inventory[idx], name, wholesale, qty, profit, note, updatedAt: Date.now() };
+  save(LS_KEYS.inventory, state.inventory);
+  closeModal();
+  renderInventory();
+  toast("تم الحفظ ✅");
+}
+function deleteInventory(id){
+  state.inventory = state.inventory.filter(x=>x.id!==id);
+  save(LS_KEYS.inventory, state.inventory);
+
+  // أيضاً نحذف أي عناصر تسوق تعتمد على منتج محذوف (حفاظاً على النظافة)
+  state.shopping = state.shopping.filter(r => r.invId !== id);
+  save(LS_KEYS.shopping, state.shopping);
+
+  closeModal();
+  renderInventory();
+  toast("تم الحذف ✅");
+}
+function renderInventory(){
+  const q = (document.getElementById("invSearch")?.value || "").trim().toLowerCase();
+  const sort = document.getElementById("invSort")?.value || "name_asc";
+
+  let items = [...state.inventory];
+  if(q){
+    items = items.filter(x => x.name.toLowerCase().includes(q));
+  }
+
+  items.sort((a,b)=>{
+    switch(sort){
+      case "name_desc": return b.name.localeCompare(a.name,'ar');
+      case "qty_desc": return (b.qty||0)-(a.qty||0);
+      case "qty_asc": return (a.qty||0)-(b.qty||0);
+      case "wholesale_desc": return (b.wholesale||0)-(a.wholesale||0);
+      case "wholesale_asc": return (a.wholesale||0)-(b.wholesale||0);
+      default: return a.name.localeCompare(b.name,'ar');
+    }
+  });
+
+  const tbody = document.getElementById("invTbody");
+  if(!tbody) return;
+
+  tbody.innerHTML = items.map((x,i)=>{
+    const stockPill = x.qty <= 0 ? `<span class="pill bad">نفد</span>` : (x.qty <= 3 ? `<span class="pill warn">قليل</span>` : `<span class="pill ok">متوفر</span>`);
+    return `
+      <tr>
+        <td>${i+1}</td>
+        <td>
+          <div style="display:flex; gap:10px; align-items:center;">
+            <div>${escapeHtml(x.name)}</div>
+            ${stockPill}
+          </div>
+          ${x.note ? `<div class="mini">${escapeHtml(x.note)}</div>` : ``}
+        </td>
+        <td>${nfmt(x.wholesale)}</td>
+        <td>${nfmt(x.qty)}</td>
+        <td>${nfmt(x.profit)}</td>
+        <td class="right">
+          <button class="btn" onclick="openInventoryModal('${x.id}')">✏️ تعديل</button>
+        </td>
+      </tr>
+    `;
+  }).join("");
+
+  const totalItems = state.inventory.length;
+  const totalQty = state.inventory.reduce((s,x)=>s+(toNum(x.qty)),0);
+  document.getElementById("invSummary").textContent = `عدد المنتجات: ${nfmt(totalItems)} | إجمالي القطع: ${nfmt(totalQty)}`;
+}
+
+/* ===========================
+   SHOPPING LIST
+=========================== */
+function saveShopNote(){
+  state.shopNote = (document.getElementById("shopNote")?.value || "");
+  localStorage.setItem(LS_KEYS.shopNote, state.shopNote);
+  renderShopping();
+}
+function openAddToShoppingModal(editRowId=null){
+  const isEdit = !!editRowId;
+  const row = isEdit ? state.shopping.find(x=>x.id===editRowId) : null;
+
+  // source from inventory
+  const inv = [...state.inventory].sort((a,b)=>a.name.localeCompare(b.name,'ar'));
+
+  const body = `
+    <div class="panel" style="margin-bottom:12px">
+      <div class="muted" style="font-size:12.5px; line-height:1.8">
+        اختر المنتج من المخزن. سعر الجملة سيُسحب تلقائيًا من المخزن، ويمكنك تعديل الكمية.
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field w8">
+        <label>المنتج (بحث/اختيار)</label>
+        <input id="m_shop_search" placeholder="اكتب للبحث..." value="${row ? escapeHtml(getInvName(row.invId)) : ""}" oninput="filterShopProducts()" />
+        <div id="m_shop_suggestions" style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;"></div>
+      </div>
+      <div class="field w4">
+        <label>الكمية</label>
+        <input id="m_shop_qty" inputmode="numeric" placeholder="مثال: 2" value="${row ? row.qty : "1"}" />
+      </div>
+
+      <div class="field w6">
+        <label>سعر الجملة (تلقائي من المخزن)</label>
+        <input id="m_shop_wh" inputmode="decimal" disabled value="${row ? nfmt(getInvWholesale(row.invId)) : "0"}" />
+      </div>
+      <div class="field w6">
+        <label>السعر الكلي (تلقائي)</label>
+        <input id="m_shop_total" disabled value="${row ? nfmt(calcRowTotal(row.invId, row.qty)) : "0"}" />
+      </div>
+
+      <input type="hidden" id="m_shop_invId" value="${row ? row.invId : ""}">
+      <div class="field w12">
+        <label>ملاحظة (اختياري)</label>
+        <input id="m_shop_note" placeholder="مثال: لون / نوع / تفاصيل" value="${row?.note ? escapeHtml(row.note) : ""}">
+      </div>
+    </div>
+  `;
+
+  const foot = `
+    <button class="btn" onclick="closeModal()">إلغاء</button>
+    ${isEdit ? `<button class="btn danger" onclick="deleteShoppingRow('${editRowId}')">حذف</button>` : ``}
+    <button class="btn ok" onclick="${isEdit ? `saveShoppingEdit('${editRowId}')` : `saveShoppingNew()`}">
+      ${isEdit ? "حفظ التعديل" : "إضافة"}
+    </button>
+  `;
+
+  openModal(isEdit ? "تعديل عنصر في قائمة التسوق" : "إضافة إلى قائمة التسوق", body, foot);
+
+  // init suggestions
+  filterShopProducts();
+
+  // live calc
+  const qtyEl = document.getElementById("m_shop_qty");
+  qtyEl.addEventListener("input", ()=>{
+    const invId = val("m_shop_invId");
+    const qty = Math.max(0, Math.floor(toNum(val("m_shop_qty"))));
+    document.getElementById("m_shop_total").value = nfmt(calcRowTotal(invId, qty));
+  });
+}
+function filterShopProducts(){
+  const q = (val("m_shop_search")||"").trim().toLowerCase();
+  const sug = document.getElementById("m_shop_suggestions");
+  if(!sug) return;
+
+  let items = [...state.inventory].sort((a,b)=>a.name.localeCompare(b.name,'ar'));
+  if(q) items = items.filter(x => x.name.toLowerCase().includes(q));
+
+  // show up to 12
+  items = items.slice(0, 12);
+
+  sug.innerHTML = items.map(x=>{
+    const wh = nfmt(x.wholesale);
+    const qtyPill = x.qty <= 0 ? "bad" : (x.qty <= 3 ? "warn" : "ok");
+    const qtyLabel = x.qty <= 0 ? "نفد" : `متوفر: ${nfmt(x.qty)}`;
+    return `
+      <button class="btn" style="border-radius:14px" onclick="selectShopProduct('${x.id}')">
+        ${escapeHtml(x.name)} <span class="pill ${qtyPill}" style="margin-right:6px">${qtyLabel}</span>
+        <span class="pill" style="margin-right:6px">جملة: ${wh}</span>
+      </button>
+    `;
+  }).join("");
+
+  // if only one and typed exact
+  // no auto select
+}
+function selectShopProduct(invId){
+  document.getElementById("m_shop_invId").value = invId;
+  document.getElementById("m_shop_search").value = getInvName(invId);
+
+  const wh = getInvWholesale(invId);
+  document.getElementById("m_shop_wh").value = nfmt(wh);
+
+  const qty = Math.max(0, Math.floor(toNum(val("m_shop_qty"))));
+  document.getElementById("m_shop_total").value = nfmt(calcRowTotal(invId, qty));
+}
+function saveShoppingNew(){
+  const invId = val("m_shop_invId");
+  if(!invId){ toast("اختر المنتج من المخزن"); return; }
+
+  const qty = Math.max(1, Math.floor(toNum(val("m_shop_qty"))));
+  const note = (val("m_shop_note")||"").trim();
+
+  // منع تكرار نفس المنتج: إذا موجود نزيد الكمية
+  const existing = state.shopping.find(r => r.invId === invId);
+  if(existing){
+    existing.qty = Math.max(1, Math.floor(toNum(existing.qty)) + qty);
+    existing.note = existing.note || note;
+    existing.updatedAt = Date.now();
+  }else{
+    state.shopping.unshift({ id:uid(), invId, qty, note, createdAt: Date.now() });
+  }
+
+  save(LS_KEYS.shopping, state.shopping);
+  closeModal();
+  renderShopping();
+  toast("تمت الإضافة ✅");
+}
+function saveShoppingEdit(id){
+  const idx = state.shopping.findIndex(x=>x.id===id);
+  if(idx<0) return;
+
+  const invId = val("m_shop_invId");
+  const qty = Math.max(1, Math.floor(toNum(val("m_shop_qty"))));
+  const note = (val("m_shop_note")||"").trim();
+  if(!invId){ toast("اختر المنتج من المخزن"); return; }
+
+  // لو عدّل لمنتج موجود بصف آخر -> ندمج
+  const clash = state.shopping.find(x => x.id!==id && x.invId===invId);
+  if(clash){
+    clash.qty = Math.max(1, Math.floor(toNum(clash.qty)) + qty);
+    clash.note = clash.note || note;
+    clash.updatedAt = Date.now();
+    state.shopping.splice(idx,1);
+  }else{
+    state.shopping[idx] = { ...state.shopping[idx], invId, qty, note, updatedAt: Date.now() };
+  }
+
+  save(LS_KEYS.shopping, state.shopping);
+  closeModal();
+  renderShopping();
+  toast("تم الحفظ ✅");
+}
+function deleteShoppingRow(id){
+  state.shopping = state.shopping.filter(x=>x.id!==id);
+  save(LS_KEYS.shopping, state.shopping);
+  closeModal();
+  renderShopping();
+  toast("تم الحذف ✅");
+}
+function renderShopping(){
+  // note
+  const noteEl = document.getElementById("shopNote");
+  if(noteEl) noteEl.value = state.shopNote || "";
+  const notePreview = document.getElementById("shopNotePreview");
+  if(notePreview) notePreview.textContent = state.shopNote ? `ملاحظة: ${state.shopNote}` : "—";
+
+  const tbody = document.getElementById("shopTbody");
+  if(!tbody) return;
+
+  // rows only if inv exists
+  const validRows = state.shopping.filter(r => !!state.inventory.find(i=>i.id===r.invId));
+  if(validRows.length !== state.shopping.length){
+    state.shopping = validRows;
+    save(LS_KEYS.shopping, state.shopping);
+  }
+
+  const rows = [...state.shopping].map(r=>{
+    const name = getInvName(r.invId);
+    const wh = getInvWholesale(r.invId);
+    const total = calcRowTotal(r.invId, r.qty);
+    return { ...r, name, wholesale: wh, total };
+  });
+
+  tbody.innerHTML = rows.map((r,i)=>`
+    <tr>
+      <td>${i+1}</td>
+      <td>
+        <div>${escapeHtml(r.name)}</div>
+        ${r.note ? `<div class="mini">${escapeHtml(r.note)}</div>` : ``}
+      </td>
+      <td>${nfmt(r.qty)}</td>
+      <td>${nfmt(r.wholesale)}</td>
+      <td><span class="pill ok">${nfmt(r.total)}</span></td>
+      <td class="right">
+        <button class="btn" onclick="openAddToShoppingModal('${r.id}')">✏️ تعديل</button>
+      </td>
+    </tr>
+  `).join("");
+
+  const grand = rows.reduce((s,r)=>s + toNum(r.total), 0);
+  document.getElementById("shopTotal").textContent = `${nfmt(grand)} دينار`;
+}
+function printShopping(){
+  // الانتقال لقائمة التسوق إذا مش فيها
+  go("shopping");
+  setTimeout(()=>window.print(), 250);
+}
+
+/* ===========================
+   TASKS
+=========================== */
+function openTaskModal(editId=null){
+  const isEdit = !!editId;
+  const t = isEdit ? state.tasks.find(x=>x.id===editId) : null;
+
+  const body = `
+    <div class="row">
+      <div class="field w8">
+        <label>عنوان المهمة</label>
+        <input id="m_task_title" placeholder="مثال: ترتيب رفوف المحل" value="${t?.title ? escapeHtml(t.title) : ""}">
+      </div>
+
+      <div class="field w4">
+        <label>النوع</label>
+        <select id="m_task_type">
+          <option value="daily" ${t?.type==="daily"?"selected":""}>يومية</option>
+          <option value="weekly" ${t?.type==="weekly"?"selected":""}>أسبوعية</option>
+          <option value="monthly" ${t?.type==="monthly"?"selected":""}>شهرية</option>
+        </select>
+      </div>
+
+      <div class="field w4">
+        <label>تاريخ التذكير (اختياري)</label>
+        <input id="m_task_date" type="date" value="${t?.date ? t.date : ""}">
+      </div>
+
+      <div class="field w4">
+        <label>أولوية</label>
+        <select id="m_task_pri">
+          <option value="low" ${t?.priority==="low"?"selected":""}>منخفضة</option>
+          <option value="med" ${!t || t?.priority==="med"?"selected":""}>متوسطة</option>
+          <option value="high" ${t?.priority==="high"?"selected":""}>عالية</option>
+        </select>
+      </div>
+
+      <div class="field w4">
+        <label>تمييز ⭐</label>
+        <select id="m_task_star">
+          <option value="0" ${t?.star ? "" : "selected"}>لا</option>
+          <option value="1" ${t?.star ? "selected" : ""}>نعم</option>
+        </select>
+      </div>
+
+      <div class="field w12">
+        <label>ملاحظة (اختياري)</label>
+        <textarea id="m_task_note" placeholder="تفاصيل المهمة…">${t?.note ? escapeHtml(t.note) : ""}</textarea>
+      </div>
+    </div>
+  `;
+  const foot = `
+    <button class="btn" onclick="closeModal()">إلغاء</button>
+    ${isEdit ? `<button class="btn danger" onclick="deleteTask('${editId}')">حذف</button>` : ``}
+    <button class="btn ok" onclick="${isEdit ? `saveTaskEdit('${editId}')` : `saveTaskNew()`}">
+      ${isEdit ? "حفظ التعديل" : "إضافة"}
+    </button>
+  `;
+  openModal(isEdit ? "تعديل مهمة" : "إضافة مهمة", body, foot);
+}
+function saveTaskNew(){
+  const title = val("m_task_title").trim();
+  if(!title){ toast("اكتب عنوان المهمة"); return; }
+  const type = val("m_task_type");
+  const date = val("m_task_date");
+  const priority = val("m_task_pri");
+  const star = val("m_task_star")==="1";
+  const note = val("m_task_note").trim();
+
+  state.tasks.unshift({ id:uid(), title, type, date, priority, star, done:false, note, createdAt:Date.now() });
+  save(LS_KEYS.tasks, state.tasks);
+  closeModal();
+  renderTasks();
+  toast("تمت الإضافة ✅");
+}
+function saveTaskEdit(id){
+  const idx = state.tasks.findIndex(x=>x.id===id);
+  if(idx<0) return;
+
+  const title = val("m_task_title").trim();
+  if(!title){ toast("اكتب عنوان المهمة"); return; }
+  const type = val("m_task_type");
+  const date = val("m_task_date");
+  const priority = val("m_task_pri");
+  const star = val("m_task_star")==="1";
+  const note = val("m_task_note").trim();
+
+  state.tasks[idx] = { ...state.tasks[idx], title, type, date, priority, star, note, updatedAt:Date.now() };
+  save(LS_KEYS.tasks, state.tasks);
+  closeModal();
+  renderTasks();
+  toast("تم الحفظ ✅");
+}
+function deleteTask(id){
+  state.tasks = state.tasks.filter(x=>x.id!==id);
+  save(LS_KEYS.tasks, state.tasks);
+  closeModal();
+  renderTasks();
+  toast("تم الحذف ✅");
+}
+function toggleTaskDone(id){
+  const t = state.tasks.find(x=>x.id===id);
+  if(!t) return;
+  t.done = !t.done;
+  t.updatedAt = Date.now();
+  save(LS_KEYS.tasks, state.tasks);
+  renderTasks();
+}
+function toggleTaskStar(id){
+  const t = state.tasks.find(x=>x.id===id);
+  if(!t) return;
+  t.star = !t.star;
+  t.updatedAt = Date.now();
+  save(LS_KEYS.tasks, state.tasks);
+  renderTasks();
+}
+function renderTasks(){
+  const q = (document.getElementById("taskSearch")?.value || "").trim().toLowerCase();
+  const f = document.getElementById("taskFilter")?.value || "all";
+
+  let tasks = [...state.tasks];
+
+  if(q){
+    tasks = tasks.filter(t => (t.title||"").toLowerCase().includes(q) || (t.note||"").toLowerCase().includes(q));
+  }
+
+  if(f==="daily" || f==="weekly" || f==="monthly"){
+    tasks = tasks.filter(t=>t.type===f);
+  }else if(f==="star"){
+    tasks = tasks.filter(t=>!!t.star);
+  }else if(f==="done"){
+    tasks = tasks.filter(t=>!!t.done);
+  }else if(f==="todo"){
+    tasks = tasks.filter(t=>!t.done);
+  }
+
+  // ترتيب ذكي: المميز ثم الأولوية ثم التاريخ
+  const priRank = { high:0, med:1, low:2 };
+  tasks.sort((a,b)=>{
+    if(!!b.star !== !!a.star) return (b.star?1:0) - (a.star?1:0);
+    if(!!a.done !== !!b.done) return (a.done?1:0) - (b.done?1:0);
+    return (priRank[a.priority]||9) - (priRank[b.priority]||9);
+  });
+
+  const grid = document.getElementById("tasksGrid");
+  if(!grid) return;
+
+  grid.innerHTML = tasks.map(t=>{
+    const typeLabel = t.type==="daily"?"يومية":(t.type==="weekly"?"أسبوعية":"شهرية");
+    const priPill = t.priority==="high" ? "bad" : (t.priority==="med" ? "warn" : "ok");
+    const priLabel = t.priority==="high" ? "عالية" : (t.priority==="med" ? "متوسطة" : "منخفضة");
+    const donePill = t.done ? `<span class="pill ok">مكتملة ✅</span>` : `<span class="pill">غير مكتملة</span>`;
+    const datePill = t.date ? `<span class="pill">📅 ${escapeHtml(t.date)}</span>` : `<span class="pill muted">بدون تاريخ</span>`;
+    return `
+      <div class="taskCard">
+        <div class="taskTop">
+          <div style="flex:1">
+            <h3 class="taskTitle">${escapeHtml(t.title)} ${t.star ? "⭐" : ""}</h3>
+            ${t.note ? `<div class="muted" style="margin-top:6px; line-height:1.7; font-size:12.5px">${escapeHtml(t.note)}</div>` : ``}
+          </div>
+          <button class="btn" onclick="openTaskModal('${t.id}')">✏️</button>
+        </div>
+
+        <div class="taskMeta">
+          <span class="pill">${typeLabel}</span>
+          <span class="pill ${priPill}">أولوية: ${priLabel}</span>
+          ${datePill}
+          ${donePill}
+        </div>
+
+        <div class="taskActions">
+          <button class="btn ${t.done ? "" : "ok"}" onclick="toggleTaskDone('${t.id}')">${t.done ? "↩️ إلغاء الإكمال" : "✅ إكمال"}</button>
+          <button class="btn" onclick="toggleTaskStar('${t.id}')">${t.star ? "⭐ إزالة التمييز" : "⭐ تمييز"}</button>
+          <button class="btn danger" onclick="deleteTask('${t.id}')">🗑️ حذف</button>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  const total = state.tasks.length;
+  const done = state.tasks.filter(t=>t.done).length;
+  const star = state.tasks.filter(t=>t.star).length;
+  document.getElementById("taskSummary").textContent = `الكل: ${nfmt(total)} | مكتملة: ${nfmt(done)} | مميزة: ${nfmt(star)}`;
+}
+
+/* ===========================
+   FUTURE LISTS
+=========================== */
+function openFutureListModal(editId=null){
+  const isEdit = !!editId;
+  const L = isEdit ? state.future.find(x=>x.id===editId) : null;
+
+  const body = `
+    <div class="row">
+      <div class="field w8">
+        <label>اسم القائمة</label>
+        <input id="m_f_title" placeholder="مثال: تجهيزات بداية الدراسة" value="${L?.title ? escapeHtml(L.title) : ""}">
+      </div>
+      <div class="field w4">
+        <label>موعد تقريبي (اختياري)</label>
+        <input id="m_f_when" type="month" value="${L?.when ? L.when : ""}">
+      </div>
+
+      <div class="field w12">
+        <label>وصف (اختياري)</label>
+        <textarea id="m_f_desc" placeholder="تفاصيل…">${L?.desc ? escapeHtml(L.desc) : ""}</textarea>
+      </div>
+    </div>
+  `;
+  const foot = `
+    <button class="btn" onclick="closeModal()">إلغاء</button>
+    ${isEdit ? `<button class="btn danger" onclick="deleteFutureList('${editId}')">حذف</button>` : ``}
+    <button class="btn ok" onclick="${isEdit ? `saveFutureListEdit('${editId}')` : `saveFutureListNew()`}">
+      ${isEdit ? "حفظ التعديل" : "إضافة"}
+    </button>
+  `;
+  openModal(isEdit ? "تعديل قائمة مستقبلية" : "قائمة مستقبلية جديدة", body, foot);
+}
+function saveFutureListNew(){
+  const title = val("m_f_title").trim();
+  if(!title){ toast("اكتب اسم القائمة"); return; }
+  const when = val("m_f_when");
+  const desc = val("m_f_desc").trim();
+
+  state.future.unshift({ id:uid(), title, when, desc, items:[], createdAt:Date.now() });
+  save(LS_KEYS.future, state.future);
+  closeModal();
+  renderFuture();
+  toast("تمت الإضافة ✅");
+}
+function saveFutureListEdit(id){
+  const idx = state.future.findIndex(x=>x.id===id);
+  if(idx<0) return;
+
+  const title = val("m_f_title").trim();
+  if(!title){ toast("اكتب اسم القائمة"); return; }
+  const when = val("m_f_when");
+  const desc = val("m_f_desc").trim();
+
+  state.future[idx] = { ...state.future[idx], title, when, desc, updatedAt:Date.now() };
+  save(LS_KEYS.future, state.future);
+  closeModal();
+  renderFuture();
+  toast("تم الحفظ ✅");
+}
+function deleteFutureList(id){
+  state.future = state.future.filter(x=>x.id!==id);
+  save(LS_KEYS.future, state.future);
+  closeModal();
+  renderFuture();
+  toast("تم الحذف ✅");
+}
+function openFutureItemModal(listId, itemId=null){
+  const L = state.future.find(x=>x.id===listId);
+  if(!L) return;
+  const isEdit = !!itemId;
+  const it = isEdit ? L.items.find(i=>i.id===itemId) : null;
+
+  const body = `
+    <div class="row">
+      <div class="field w8">
+        <label>اسم العنصر الفرعي</label>
+        <input id="m_fi_title" placeholder="مثال: ستاند عرض" value="${it?.title ? escapeHtml(it.title) : ""}">
+      </div>
+      <div class="field w4">
+        <label>التكلفة (فردية)</label>
+        <input id="m_fi_cost" inputmode="decimal" placeholder="مثال: 25000" value="${it ? it.cost : ""}">
+      </div>
+      <div class="field w12">
+        <label>ملاحظة (اختياري)</label>
+        <input id="m_fi_note" placeholder="تفاصيل…" value="${it?.note ? escapeHtml(it.note) : ""}">
+      </div>
+    </div>
+  `;
+  const foot = `
+    <button class="btn" onclick="closeModal()">إلغاء</button>
+    ${isEdit ? `<button class="btn danger" onclick="deleteFutureItem('${listId}','${itemId}')">حذف</button>` : ``}
+    <button class="btn ok" onclick="${isEdit ? `saveFutureItemEdit('${listId}','${itemId}')` : `saveFutureItemNew('${listId}')`}">
+      ${isEdit ? "حفظ" : "إضافة"}
+    </button>
+  `;
+  openModal(isEdit ? "تعديل عنصر" : "إضافة عنصر فرعي", body, foot);
+}
+function saveFutureItemNew(listId){
+  const L = state.future.find(x=>x.id===listId);
+  if(!L) return;
+
+  const title = val("m_fi_title").trim();
+  const cost = toNum(val("m_fi_cost"));
+  const note = val("m_fi_note").trim();
+  if(!title){ toast("اكتب اسم العنصر"); return; }
+
+  L.items.unshift({ id:uid(), title, cost, note, done:false, createdAt:Date.now() });
+  save(LS_KEYS.future, state.future);
+  closeModal();
+  renderFuture();
+  toast("تمت الإضافة ✅");
+}
+function saveFutureItemEdit(listId, itemId){
+  const L = state.future.find(x=>x.id===listId);
+  if(!L) return;
+  const idx = L.items.findIndex(i=>i.id===itemId);
+  if(idx<0) return;
+
+  const title = val("m_fi_title").trim();
+  const cost = toNum(val("m_fi_cost"));
+  const note = val("m_fi_note").trim();
+  if(!title){ toast("اكتب اسم العنصر"); return; }
+
+  L.items[idx] = { ...L.items[idx], title, cost, note, updatedAt:Date.now() };
+  save(LS_KEYS.future, state.future);
+  closeModal();
+  renderFuture();
+  toast("تم الحفظ ✅");
+}
+function deleteFutureItem(listId, itemId){
+  const L = state.future.find(x=>x.id===listId);
+  if(!L) return;
+  L.items = L.items.filter(i=>i.id!==itemId);
+  save(LS_KEYS.future, state.future);
+  closeModal();
+  renderFuture();
+  toast("تم الحذف ✅");
+}
+function toggleFutureItemDone(listId, itemId){
+  const L = state.future.find(x=>x.id===listId);
+  if(!L) return;
+  const it = L.items.find(i=>i.id===itemId);
+  if(!it) return;
+  it.done = !it.done;
+  it.updatedAt = Date.now();
+  save(LS_KEYS.future, state.future);
+  renderFuture();
+}
+function renderFuture(){
+  const q = (document.getElementById("futureSearch")?.value || "").trim().toLowerCase();
+  let lists = [...state.future];
+
+  if(q) lists = lists.filter(L => (L.title||"").toLowerCase().includes(q) || (L.desc||"").toLowerCase().includes(q));
+
+  // حساب إجمالي لكل قائمة
+  const listTotal = (L) => (L.items||[]).reduce((s,i)=>s + toNum(i.cost), 0);
+
+  const wrap = document.getElementById("futureLists");
+  if(!wrap) return;
+
+  wrap.innerHTML = lists.map(L=>{
+    const total = listTotal(L);
+    const doneCount = (L.items||[]).filter(i=>i.done).length;
+    const allCount = (L.items||[]).length;
+
+    return `
+      <div class="futureCard">
+        <div style="display:flex; justify-content:space-between; gap:10px; align-items:flex-start;">
+          <div style="flex:1">
+            <h4>${escapeHtml(L.title)}</h4>
+            <div class="futureSub">
+              ${L.when ? `📅 ${escapeHtml(L.when)} • ` : ``}
+              عناصر: ${nfmt(allCount)} • مكتمل: ${nfmt(doneCount)}
+            </div>
+          </div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button class="btn" onclick="openFutureListModal('${L.id}')">✏️</button>
+          </div>
+        </div>
+
+        ${L.desc ? `<div class="muted" style="font-size:12.5px; line-height:1.7">${escapeHtml(L.desc)}</div>` : ``}
+
+        <div class="taskMeta" style="margin-top:10px">
+          <span class="pill warn">الإجمالي: ${nfmt(total)} دينار</span>
+          <button class="btn ok" onclick="openFutureItemModal('${L.id}')">➕ عنصر فرعي</button>
+          <button class="btn danger" onclick="deleteFutureList('${L.id}')">🗑️ حذف القائمة</button>
+        </div>
+
+        <div class="subitems">
+          ${(L.items||[]).length ? (L.items||[]).map(it=>{
+            return `
+              <div class="subitem">
+                <div style="min-width:0">
+                  <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
+                    <strong style="font-size:13px">${escapeHtml(it.title)}</strong>
+                    ${it.done ? `<span class="pill ok">تم ✅</span>` : `<span class="pill">قيد التنفيذ</span>`}
+                    <span class="pill">${nfmt(it.cost)} دينار</span>
+                  </div>
+                  ${it.note ? `<div class="muted" style="font-size:12.5px; margin-top:6px; line-height:1.6">${escapeHtml(it.note)}</div>` : ``}
+                </div>
+                <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+                  <button class="btn ${it.done ? "" : "ok"}" onclick="toggleFutureItemDone('${L.id}','${it.id}')">${it.done ? "↩️" : "✅"}</button>
+                  <button class="btn" onclick="openFutureItemModal('${L.id}','${it.id}')">✏️</button>
+                  <button class="btn danger" onclick="deleteFutureItem('${L.id}','${it.id}')">🗑️</button>
+                </div>
+              </div>
+            `;
+          }).join("") : `<div class="muted">لا توجد عناصر فرعية بعد — اضغط “➕ عنصر فرعي”.</div>`}
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  const grand = state.future.reduce((s,L)=> s + (L.items||[]).reduce((ss,i)=>ss+toNum(i.cost),0), 0);
+  document.getElementById("futureGrandTotal").textContent = `${nfmt(grand)} دينار`;
+}
+
+/* ===========================
+   Helpers
+=========================== */
+function getInvName(id){
+  const x = state.inventory.find(i=>i.id===id);
+  return x ? x.name : "—";
+}
+function getInvWholesale(id){
+  const x = state.inventory.find(i=>i.id===id);
+  return x ? toNum(x.wholesale) : 0;
+}
+function calcRowTotal(invId, qty){
+  return getInvWholesale(invId) * Math.max(0, Math.floor(toNum(qty)));
+}
+function val(id){
+  const el = document.getElementById(id);
+  return el ? el.value : "";
+}
+function escapeHtml(str){
+  return String(str)
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
+
+/* ===========================
+   Boot
+=========================== */
+(function init(){
+  // زرع ملاحظة التسوق
+  const noteEl = document.getElementById("shopNote");
+  if(noteEl) noteEl.value = state.shopNote || "";
+
+  // لو المخزن فاضي: ضع مثالين اختياريين (معلّق)
+  // if(state.inventory.length===0){
+  //   state.inventory = [
+  //     {id:uid(), name:"كيبل تايب سي", wholesale:2500, qty:10, profit:500, note:"جودة ممتازة", createdAt:Date.now()},
+  //     {id:uid(), name:"شاحن سريع", wholesale:8000, qty:5, profit:1500, note:"USB-C PD", createdAt:Date.now()},
+  //   ];
+  //   save(LS_KEYS.inventory, state.inventory);
+  // }
+
+  // Render initial (home only)
+})();
+</script>
+</body>
+</html>
